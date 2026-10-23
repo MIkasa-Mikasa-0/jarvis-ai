@@ -15,32 +15,64 @@ object Gemini {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    private const val URL = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+    private const val URL =
+        "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
 
-    fun generate(apiKey: String, model: String, system: String, prompt: String, imageJpegBase64: String? = null): String {
-        if (apiKey.isBlank()) throw GeminiException("Gemini API key missing. Open Settings and paste your key (free from aistudio.google.com).")
-        val parts = StringBuilder()
-        parts.append("[{"text":").append(JSONObject.quote(prompt)).append("}")
-        if (imageJpegBase64 != null) {
-            parts.append(",{"inline_data":{"mime_type":"image/jpeg","data":"")
-                .append(imageJpegBase64).append(""}}")
+    fun generate(
+        apiKey: String,
+        model: String,
+        system: String,
+        prompt: String,
+        imageJpegBase64: String? = null
+    ): String {
+        if (apiKey.isBlank()) {
+            throw GeminiException("Gemini API key missing. Open Settings and paste your key.")
         }
-        parts.append("]")
-        val json = "{\"system_instruction\":{\"parts\":[{\"text\":" + JSONObject.quote(system) +
-            "}]},\"contents\":[{\"parts\":" + parts + "}]}"
+
+        val parts = org.json.JSONArray()
+        parts.put(JSONObject().put("text", prompt))
+
+        if (imageJpegBase64 != null) {
+            parts.put(
+                JSONObject().put(
+                    "inline_data",
+                    JSONObject()
+                        .put("mime_type", "image/jpeg")
+                        .put("data", imageJpegBase64)
+                )
+            )
+        }
+
+        val json = JSONObject()
+            .put("system_instruction", JSONObject().put(
+                "parts", org.json.JSONArray().put(JSONObject().put("text", system))
+            ))
+            .put("contents", org.json.JSONArray().put(
+                JSONObject().put("parts", parts)
+            ))
+            .toString()
+
         val body = json.toRequestBody("application/json".toMediaType())
-        val req = Request.Builder().url(URL.format(model) + "?key=" + apiKey).post(body).build()
+        val req = Request.Builder()
+            .url(URL.format(model) + "?key=" + apiKey)
+            .post(body)
+            .build()
+
         client.newCall(req).execute().use { resp ->
             val raw = resp.body?.string().orEmpty()
             when {
                 resp.code == 429 -> {
                     val wait = resp.header("Retry-After")?.toIntOrNull()?.plus(1) ?: 30
-                    throw GeminiException("API rate limit reached (free tier). Wait about ${wait}s and try again.")
+                    throw GeminiException("API rate limit reached. Wait about ${wait}s and try again.")
                 }
-                resp.code == 400 && raw.contains("API_KEY_INVALID") -> throw GeminiException("Invalid Gemini API key. Check Settings.")
-                resp.code == 400 && raw.contains("API key not valid") -> throw GeminiException("Invalid Gemini API key. Check Settings.")
-                !resp.isSuccessful -> throw GeminiException("Gemini error ${resp.code}: ${raw.take(160)}")
+                resp.code == 400 && raw.contains("API_KEY_INVALID") ->
+                    throw GeminiException("Invalid Gemini API key. Check Settings.")
+                resp.code == 400 && raw.contains("API key not valid") ->
+                    throw GeminiException("Invalid Gemini API key. Check Settings.")
+                !resp.isSuccessful ->
+                    throw GeminiException("Gemini error ${resp.code}: ${raw.take(160)}")
             }
+
             val root = JSONObject(raw)
             return root.getJSONArray("candidates")
                 .getJSONObject(0)
