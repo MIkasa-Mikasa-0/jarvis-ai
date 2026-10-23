@@ -12,6 +12,8 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     companion object { var inst: JarvisAccessibilityService? = null }
 
+    override fun onAccessibilityEvent(event: android.view.accessibility.AccessibilityEvent?) {}
+    override fun onInterrupt() {}
     override fun onServiceConnected() { inst = this }
     override fun onUnbind(intent: Intent?): Boolean { inst = null; return super.onUnbind(intent) }
 
