@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JARVIS AI</string>
+    <string name="a11y_desc">JARVIS reads the screen, taps, scrolls and types only after you confirm each action.</string>
+</resources>
